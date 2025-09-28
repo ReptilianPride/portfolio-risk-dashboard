@@ -75,7 +75,7 @@ if(total_weight!=100):
     st.warning("⚠️ Warning: Total weight does not add up to 100%.")
 else:
     # Calculation section
-    returns=simple_returns(close)
+    returns=simple_returns(close[tickers])
     port_ret=portfolio_returns(returns,weights)
     cum_ret=cumulative_returns(port_ret)
     
@@ -93,11 +93,69 @@ else:
 
     corr=returns.corr()
 
-    # add the charts below
+    # --------------------------
+    # Dashboard Layout
+    # --------------------------
 
-# --------------------------
-# Dashboard Layout
-# --------------------------
+    st.title('Stock Portfolio Risk Dashboard')
+    st.markdown("A prototype dashboard showcasing risk analytics for selected assets.")
+
+    st.subheader('Portfolio Overview')
+
+    df = pd.DataFrame({
+        "Ticker": tickers,
+        "Weight": [f"{w}%" for w in weights] 
+    })
+    st.write("**Selected Tickers (w/ weights):**")
+    st.write(f'**Portfolio startpoint:** {close.index.min().year}')
+    st.dataframe(df)
+
+    st.subheader('Risk Metrics')
+
+    col1,col2,col3=st.columns(3)
+    col1.metric("**Mean Daily Return**", f"{port_mean_ret:.4f}")
+    col2.metric("**Volatility (Std Dev)**", f"{volatility_score:.4f}")
+    col3.metric("**Sharpe Ratio**", f"{sharpe_ratio:.2f}")
+
+    st.write(f"**Confidence Level: {confidence_level:.2%}**")
+
+    col1,col2=st.columns(2)
+    col1.metric('**Value at Risk (VaR)**',round(var,3))
+    col2.metric('**Conditional VaR**',round(cvar,3))
+
+    # --------------------------
+    # Dashboard Layout
+    # --------------------------
+    st.subheader('Charts')
+
+    # Return distribution
+    fig1=px.histogram(port_ret,nbins=50,title='Portfolio Return Distribution')
+    fig1.add_vline(x=-var, line_dash="dash", line_color='red', annotation_text=f"VaR ({-var:.2%})", annotation_position='top right')
+    fig1.add_vline(x=-cvar, line_dash="dot", line_color='white', annotation_text=f"CVaR ({-cvar:.2%})", annotation_position='top left')
+    fig1.update_layout(
+        showlegend=False,
+        xaxis_title='Daily Returns',
+        yaxis_title='Count'
+    )
+    st.plotly_chart(fig1,use_container_width=True)
+
+    # Cumulative Returns Distribution
+    fig2 = px.line(cum_ret, title="Cumulative Portfolio Returns")
+    fig2.update_xaxes(nticks=20)
+    fig2.update_layout(
+        showlegend=False,
+        xaxis_title='Daily Timeline',
+        yaxis_title='Cumulative Returns'
+    )
+    st.plotly_chart(fig2,use_container_width=True)
+
+    # Max Drawdown
+    fig3=px.line(drawdown_data,title='Portfolio Drawdown')
+    st.plotly_chart(fig3,use_container_width=True)
+    # edit code here currently
 
 
-
+    # Asset Correlations
+    corr=returns[tickers].corr()
+    fig4=px.imshow(corr,text_auto=True,aspect="auto",title="Asset Correlations")
+    st.plotly_chart(fig4,use_container_width=True)
