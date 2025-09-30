@@ -65,7 +65,7 @@ tickers=st.sidebar.multiselect(
     "Add Assets",
     # options=[], # Keep this one
     options=close.columns, # REMOVE: Just for now
-    default=close.columns
+    default=close.columns[:-3]
 )
 
 # To set the weights
@@ -77,7 +77,7 @@ if tickers:
             f'{t} Weight',
             min_value=0,
             max_value=100,
-            value=100//len(close.columns),
+            value=100//len(tickers),
             step=1 # Uses only int for now
         )
         weights.append(w)
@@ -120,6 +120,8 @@ if valid_weights:
     returns=simple_returns(close[tickers])
     port_ret=portfolio_returns(returns,weights)
     cum_ret=cumulative_returns(port_ret)
+
+    port_value=initial_investment*(1+cum_ret)
     
     port_mean_ret=port_ret.mean()
     volatility_score=port_ret.std()
@@ -141,6 +143,7 @@ if valid_weights:
         "returns": returns,
         "port_ret": port_ret,
         "cum_ret": cum_ret,
+        "port_value":port_value,
         "port_mean_ret": port_mean_ret,
         "volatility_score": volatility_score,
         "sharpe_ratio": sharpe_ratio,
@@ -170,6 +173,7 @@ results = st.session_state.last_results
 returns = results["returns"]
 port_ret = results["port_ret"]
 cum_ret = results["cum_ret"]
+port_value=results['port_value']
 port_mean_ret = results["port_mean_ret"]
 volatility_score = results["volatility_score"]
 sharpe_ratio = results["sharpe_ratio"]
@@ -213,6 +217,19 @@ metric_with_divider(col3, "Parametric VaR", round(pvar, 3))  # no border on last
 # --------------------------
 st.subheader('Charts')
 
+# To show the portfolio returns chart
+fig=px.line(port_value,title='Portfolio Returns')
+fig.update_xaxes(nticks=20)
+fig.update_traces(
+    hovertemplate='%{y:,.0f}<extra></extra>'
+)
+fig.update_layout(
+    showlegend=False,
+    xaxis_title='Time',
+    yaxis_title='Returns'
+)
+st.plotly_chart(fig,use_container_width=True)
+
 col1,col2=st.columns(2)
 
 with col1:
@@ -223,7 +240,7 @@ with col1:
     fig.update_layout(
         showlegend=False,
         xaxis_title='Daily Returns',
-        yaxis_title='Count'
+        yaxis_title='Frequency'
     )
     st.plotly_chart(fig,use_container_width=True)
 
