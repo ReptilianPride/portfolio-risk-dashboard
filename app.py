@@ -136,6 +136,10 @@ if valid_weights:
     cvar=historical_cvar(port_ret,1-confidence_level)
     pvar=parametric_var(port_ret,1-confidence_level)
 
+    cash_var = initial_investment * var
+    cash_cvar = initial_investment * cvar
+    cash_pvar = initial_investment * pvar
+
     corr=returns.corr()
 
     # Save into session_state
@@ -153,6 +157,9 @@ if valid_weights:
         "var": var,
         "cvar": cvar,
         "pvar":pvar,
+        "cash_var":cash_var,
+        "cash_cvar":cash_cvar,
+        "cash_pvar":cash_pvar,
         "corr": corr,
     }
 
@@ -183,6 +190,9 @@ drawdown_data = results["drawdown_data"]
 var = results["var"]
 cvar = results["cvar"]
 pvar=results['pvar']
+cash_var=results['cash_var']
+cash_cvar=results['cash_cvar']
+cash_pvar=results['cash_pvar']
 corr = results["corr"]
 
 # Non chart based display for dashboard
@@ -199,9 +209,16 @@ st.subheader('Risk Metrics')
 # --- Risk Metrics ---
 col1, col2, col3, col4 = st.columns(4)
 metric_with_divider(col1, "Mean Daily Return", f"{port_mean_ret:.4f}")
+metric_with_divider(col1, "", "$"+str(round((initial_investment * port_mean_ret), 2)))
+
 metric_with_divider(col2, "Volatility (Std Dev)", f"{volatility_score:.4f}")
+metric_with_divider(col2, "", "$"+str(round((initial_investment * volatility_score), 2)))
+
 metric_with_divider(col3, "Sharpe Ratio", f"{sharpe_ratio:.2f}")
-metric_with_divider(col4, "Max Drawdown", round(drawdown_data.min(), 3))  # no border on last column
+metric_with_divider(col3, "", "$"+str(round((initial_investment * sharpe_ratio), 2)))
+
+metric_with_divider(col4, "Max Drawdown", round(drawdown_data.min(), 3))
+metric_with_divider(col4, "", "$"+str(round((initial_investment * drawdown_data.min()), 2)))
 
 st.markdown("---")
 
@@ -210,7 +227,13 @@ st.write(f"**Confidence Level**: {confidence_level:.2%}")
 col1, col2, col3 = st.columns(3)
 metric_with_divider(col1, "Value at Risk (VaR)", round(var, 3))
 metric_with_divider(col2, "Conditional VaR", round(cvar, 3))
-metric_with_divider(col3, "Parametric VaR", round(pvar, 3))  # no border on last column
+metric_with_divider(col3, "Parametric VaR", round(pvar, 3))
+
+col1, col2, col3 = st.columns(3)
+metric_with_divider(col1, "", "$"+str(round(cash_var, 2)))
+metric_with_divider(col2, "", "$"+str(round(cash_cvar, 2)))
+metric_with_divider(col3, "", "$"+str(round(cash_pvar, 2)))
+
 
 # --------------------------
 # Dashboard Layout
