@@ -58,7 +58,7 @@ close=prices['Close']
 st.sidebar.header("Portfolio Settings")
 
 # Get the initial investment
-initial_investment = st.sidebar.number_input("Initial Investment ($)", 10000, step=1000)
+initial_investment = st.sidebar.number_input("Initial Investment ($)", min_value=0, value=10000, step=1000)
 
 # Text tag area to add assets
 tickers=st.sidebar.multiselect(
@@ -101,7 +101,7 @@ if valid_weights:
     st.success('Dashboard updated!')
 
     st.title('Stock Portfolio Risk Dashboard')
-    st.markdown("A prototype dashboard showcasing risk analytics for selected assets.")
+    st.markdown("A platform to test your portfolio.")
 
     st.subheader('Portfolio Overview')
 
