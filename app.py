@@ -121,7 +121,7 @@ if valid_weights:
     port_ret=portfolio_returns(returns,weights)
     cum_ret=cumulative_returns(port_ret)
 
-    port_value=initial_investment*(1+cum_ret)
+    port_value=initial_investment*(cum_ret+1)
     
     port_mean_ret=port_ret.mean()
     volatility_score=port_ret.std()
@@ -208,26 +208,26 @@ st.subheader('Risk Metrics')
 
 # --- Risk Metrics ---
 col1, col2, col3, col4 = st.columns(4)
-metric_with_divider(col1, "Mean Daily Return", f"{port_mean_ret:.4f}")
+metric_with_divider(col1, "Mean Daily Return", f"{port_mean_ret:.2%}")
 metric_with_divider(col1, "", "$"+str(round((initial_investment * port_mean_ret), 2)))
 
-metric_with_divider(col2, "Volatility (Std Dev)", f"{volatility_score:.4f}")
+metric_with_divider(col2, "Volatility (Std Dev)", f"{volatility_score:.2%}")
 metric_with_divider(col2, "", "$"+str(round((initial_investment * volatility_score), 2)))
 
-metric_with_divider(col3, "Sharpe Ratio", f"{sharpe_ratio:.2f}")
+metric_with_divider(col3, "Sharpe Ratio", f"{sharpe_ratio:.2%}")
 metric_with_divider(col3, "", "$"+str(round((initial_investment * sharpe_ratio), 2)))
 
-metric_with_divider(col4, "Max Drawdown", round(drawdown_data.min(), 3))
-metric_with_divider(col4, "", "$"+str(round((initial_investment * drawdown_data.min()), 2)))
+metric_with_divider(col4, "Max Drawdown", f"{-drawdown_data.min():.2%}")
+metric_with_divider(col4, "", "$"+str(round(-(initial_investment * drawdown_data.min()), 2)))
 
 st.markdown("---")
 
 # --- Confidence Level & VaR Metrics ---
-st.write(f"**Confidence Level**: {confidence_level:.2%}")
+st.write(f"**Confidence Level (Daily)**: {confidence_level:.2%}")
 col1, col2, col3 = st.columns(3)
-metric_with_divider(col1, "Value at Risk (VaR)", round(var, 3))
-metric_with_divider(col2, "Conditional VaR", round(cvar, 3))
-metric_with_divider(col3, "Parametric VaR", round(pvar, 3))
+metric_with_divider(col1, "Value at Risk (VaR)", f"{var:.2%}")
+metric_with_divider(col2, "Conditional VaR", f"{cvar:.2%}")
+metric_with_divider(col3, "Parametric VaR", f"{pvar:.2%}")
 
 col1, col2, col3 = st.columns(3)
 metric_with_divider(col1, "", "$"+str(round(cash_var, 2)))
@@ -244,7 +244,7 @@ st.subheader('Charts')
 fig=px.line(port_value,title='Portfolio Returns')
 fig.update_xaxes(nticks=20)
 fig.update_traces(
-    hovertemplate='%{y:,.0f}<extra></extra>'
+    hovertemplate='Date: %{x|%Y-%m-%d}<br>Value: %{y:,.2f}<extra></extra>'
 )
 fig.update_layout(
     showlegend=False,
