@@ -24,4 +24,8 @@ def fetch_prices(tickers,start=None,end=None):
     # If single ticker, resulting data is series, converting to dataframe
     if isinstance(data,pd.Series):
         data=data.to_frame()
-    return data
+
+    missing=[ticker for ticker in data['Close'].columns if (data['Close'][ticker].notna().sum())==0]
+    if not missing:
+        return data
+    raise Exception(f'Invalid Ticker Input! :: {missing}')

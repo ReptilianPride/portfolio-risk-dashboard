@@ -1,10 +1,12 @@
 import streamlit as st
+from streamlit_tags import st_tags
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import plotly.express as px
 import plotly.graph_objects as go
 
+from src.data_fetch import fetch_prices
 from src.metrics import (
     simple_returns, portfolio_returns, cumulative_returns,
     rolling_vol, max_drawdown, historical_var, historical_cvar,
@@ -40,19 +42,6 @@ st.set_page_config(
 )
 
 # --------------------------
-# Load Data
-# --------------------------
-@st.cache_data
-def load_data():
-    # Replace this with your own loading step
-    prices = pd.read_csv("assets/data/prices.csv",header=[0,1],index_col=0,parse_dates=True)
-    prices=prices.dropna()
-    return prices
-
-prices = load_data()
-close=prices['Close']
-
-# --------------------------
 # Sidebar Inputs
 # --------------------------
 st.sidebar.header("Portfolio Settings")
@@ -61,12 +50,24 @@ st.sidebar.header("Portfolio Settings")
 initial_investment = st.sidebar.number_input("Initial Investment ($)", min_value=0, value=10000, step=1000)
 
 # Text tag area to add assets
-tickers=st.sidebar.multiselect(
-    "Add Assets",
-    # options=[], # Keep this one
-    options=close.columns, # REMOVE: Just for now
-    default=close.columns[:-3]
-)
+tickers = st.sidebar.container()
+with tickers:
+    tickers = st_tags(
+        label="Add Assets",
+        text="Press enter to add more",
+        value=['AAPL','GOOG'],
+        suggestions=["AAPL", "GOOG", "TSLA"],  # optional autocomplete
+        # maxtags=10
+    )
+tickers=list(map(str.upper,tickers))
+
+# ***GRAB THE PRICE DATA
+if(len(tickers)):
+    prices=fetch_prices(tickers)
+    prices=prices.dropna()
+    close=prices['Close']
+
+st.sidebar.write(close.columns)
 
 # To set the weights
 weights=[]
