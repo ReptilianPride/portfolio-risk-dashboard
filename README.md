@@ -110,4 +110,4 @@ streamlit run app.py
 - ✅ Add sector & asset-class diversification charts
 - ✅ Better portfolio comparison logic
 
-*With luv from a Risk Enthusiast*
+*With luv from a Risk Enthusiast <3*
