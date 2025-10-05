@@ -29,7 +29,6 @@ def metric_with_divider(col, label, value, border=True):
             """,
             unsafe_allow_html=True,
         )
-
 # helper functions end
 
 # --------------------------
@@ -40,6 +39,18 @@ st.set_page_config(
     page_icon="🚀",              # optional, sets the favicon
     layout='wide'
 )
+
+# --------------------------
+# Load Data
+# --------------------------
+@st.cache_data
+def load_data():
+    # Replace this with your own loading step
+    prices = fetch_prices(['^GSPC'])
+    prices=prices.dropna()
+    return prices
+spx_prices = load_data()
+spx_close = spx_prices['Close']
 
 # --------------------------
 # Sidebar Inputs
@@ -67,7 +78,6 @@ if(len(tickers)):
     prices=prices.dropna()
     close=prices['Close']
 
-st.sidebar.write(close.columns)
 
 # To set the weights
 weights=[]
@@ -126,7 +136,9 @@ if valid_weights:
     
     port_mean_ret=port_ret.mean()
     volatility_score=port_ret.std()
-    sharpe_ratio=port_mean_ret/volatility_score # sharpe ratio, need to check this out in more detail
+    # sharpe_ratio=port_mean_ret/volatility_score
+    trading_days=252
+    sharpe_ratio = (port_mean_ret * trading_days) / (volatility_score * np.sqrt(trading_days))
 
     window_size=60 # Could be a user input
     roll_vol=rolling_vol(port_ret,window=window_size)
@@ -196,127 +208,273 @@ cash_cvar=results['cash_cvar']
 cash_pvar=results['cash_pvar']
 corr = results["corr"]
 
-# Non chart based display for dashboard
-df = pd.DataFrame({
-    "Ticker": tickers,
-    "Weight": [f"{w}%" for w in weights] 
-})
-st.write("**Selected Tickers (w/ weights):**")
-# st.write(f'**Portfolio startpoint:** {close.index.min().year}')
-st.dataframe(df)
+tab1, tab2 = st.tabs(["Portfolio Dashboard", "Comparison with SPX"])
 
-st.subheader('Risk Metrics')
+with tab1:
+    # Non chart based display for dashboard
+    df = pd.DataFrame({
+        "Ticker": tickers,
+        "Weight": [f"{w}%" for w in weights] 
+    })
+    st.write("**Selected Tickers (w/ weights):**")
+    # st.write(f'**Portfolio startpoint:** {close.index.min().year}')
+    st.dataframe(df)
 
-# --- Risk Metrics ---
-col1, col2, col3, col4 = st.columns(4)
-metric_with_divider(col1, "Mean Daily Return", f"{port_mean_ret:.2%}")
-metric_with_divider(col1, "", "$"+str(round((initial_investment * port_mean_ret), 2)))
+    st.subheader('Risk Metrics (Daily)')
 
-metric_with_divider(col2, "Volatility (Std Dev)", f"{volatility_score:.2%}")
-metric_with_divider(col2, "", "$"+str(round((initial_investment * volatility_score), 2)))
+    # --- Risk Metrics ---
+    col1, col2, col3, col4 = st.columns(4)
+    metric_with_divider(col1, "Mean Return", f"{port_mean_ret:.2%}")
+    metric_with_divider(col1, "", "$"+str(round((initial_investment * port_mean_ret), 2)))
 
-metric_with_divider(col3, "Sharpe Ratio", f"{sharpe_ratio:.2%}")
-metric_with_divider(col3, "", "$"+str(round((initial_investment * sharpe_ratio), 2)))
+    metric_with_divider(col2, "Volatility (Std Dev)", f"{volatility_score:.2%}")
+    metric_with_divider(col2, "", "$"+str(round((initial_investment * volatility_score), 2)))
 
-metric_with_divider(col4, "Max Drawdown", f"{-drawdown_data.min():.2%}")
-metric_with_divider(col4, "", "$"+str(round(-(initial_investment * drawdown_data.min()), 2)))
+    metric_with_divider(col3, "Sharpe Ratio (annualized)", f"{sharpe_ratio:.2%}")
+    metric_with_divider(col3, "", "$"+str(round((initial_investment * sharpe_ratio), 2)))
 
-st.markdown("---")
+    metric_with_divider(col4, "Max Drawdown", f"{-drawdown_data.min():.2%}")
+    metric_with_divider(col4, "", "$"+str(round(-(initial_investment * drawdown_data.min()), 2)))
 
-# --- Confidence Level & VaR Metrics ---
-st.write(f"**Confidence Level (Daily)**: {confidence_level:.2%}")
-col1, col2, col3 = st.columns(3)
-metric_with_divider(col1, "Value at Risk (VaR)", f"{var:.2%}")
-metric_with_divider(col2, "Conditional VaR", f"{cvar:.2%}")
-metric_with_divider(col3, "Parametric VaR", f"{pvar:.2%}")
+    st.markdown("---")
 
-col1, col2, col3 = st.columns(3)
-metric_with_divider(col1, "", "$"+str(round(cash_var, 2)))
-metric_with_divider(col2, "", "$"+str(round(cash_cvar, 2)))
-metric_with_divider(col3, "", "$"+str(round(cash_pvar, 2)))
+    # --- Confidence Level & VaR Metrics ---
+    st.write(f"**Confidence Level (Daily)**: {confidence_level:.2%}")
+    col1, col2, col3 = st.columns(3)
+    metric_with_divider(col1, "Value at Risk (VaR)", f"{var:.2%}")
+    metric_with_divider(col2, "Conditional VaR", f"{cvar:.2%}")
+    metric_with_divider(col3, "Parametric VaR", f"{pvar:.2%}")
+
+    col1, col2, col3 = st.columns(3)
+    metric_with_divider(col1, "", "$"+str(round(cash_var, 2)))
+    metric_with_divider(col2, "", "$"+str(round(cash_cvar, 2)))
+    metric_with_divider(col3, "", "$"+str(round(cash_pvar, 2)))
 
 
 # --------------------------
 # Dashboard Layout
 # --------------------------
-st.subheader('Charts')
 
-# To show the portfolio returns chart
-fig=px.line(port_value,title='Portfolio Returns')
-fig.update_xaxes(nticks=20)
-fig.update_traces(
-    hovertemplate='Date: %{x|%Y-%m-%d}<br>Value: %{y:,.2f}<extra></extra>'
-)
-fig.update_layout(
-    showlegend=False,
-    xaxis_title='Time',
-    yaxis_title='Returns'
-)
-st.plotly_chart(fig,use_container_width=True)
+    st.subheader('Charts')
 
-col1,col2=st.columns(2)
-
-with col1:
-    # Return distribution
-    fig=px.histogram(port_ret,nbins=50,title='Portfolio Return Distribution')
-    fig.add_vline(x=-var, line_dash="dash", line_color='red', annotation_text=f"VaR ({-var:.2%})", annotation_position='top right')
-    fig.add_vline(x=-cvar, line_dash="dot", line_color='white', annotation_text=f"CVaR ({-cvar:.2%})", annotation_position='top left')
-    fig.update_layout(
-        showlegend=False,
-        xaxis_title='Daily Returns',
-        yaxis_title='Frequency'
-    )
-    st.plotly_chart(fig,use_container_width=True)
-
-    # Annualized Rolling Volatility
-    fig=px.line(roll_vol,title=f"{window_size}-day Annualized Rolling Volitility")
+    # To show the portfolio returns chart
+    fig=px.line(port_value,title='Portfolio Returns')
     fig.update_xaxes(nticks=20)
-    fig.update_traces(line=dict(color='orange'))
+    fig.update_traces(
+        hovertemplate='Date: %{x|%Y-%m-%d}<br>Value: %{y:,.2f}<extra></extra>'
+    )
     fig.update_layout(
         showlegend=False,
         xaxis_title='Time',
-        yaxis_title='Volatility'
+        yaxis_title='Returns'
     )
     st.plotly_chart(fig,use_container_width=True)
 
+    col1,col2=st.columns(2)
 
-with col2:
-    # Cumulative Returns Distribution
-    fig = px.line(cum_ret, title="Cumulative Portfolio Returns")
-    fig.update_xaxes(nticks=20)
-    fig.update_layout(
-        showlegend=False,
-        xaxis_title='Daily Timeline',
-        yaxis_title='Cumulative Returns'
-    )
+    with col1:
+        # Return distribution
+        fig=px.histogram(port_ret,nbins=50,title='Portfolio Return Distribution')
+        fig.add_vline(x=-var, line_dash="dash", line_color='red', annotation_text=f"VaR ({-var:.2%})", annotation_position='top right')
+        fig.add_vline(x=-cvar, line_dash="dot", line_color='white', annotation_text=f"CVaR ({-cvar:.2%})", annotation_position='top left')
+        fig.update_layout(
+            showlegend=False,
+            xaxis_title='Daily Returns',
+            yaxis_title='Frequency'
+        )
+        st.plotly_chart(fig,use_container_width=True)
+
+        # Annualized Rolling Volatility
+        fig=px.line(roll_vol,title=f"{window_size}-day Annualized Rolling Volitility")
+        fig.update_xaxes(nticks=20)
+        fig.update_traces(line=dict(color='orange'))
+        fig.update_layout(
+            showlegend=False,
+            xaxis_title='Time',
+            yaxis_title='Volatility'
+        )
+        st.plotly_chart(fig,use_container_width=True)
+
+
+    with col2:
+        # Cumulative Returns Distribution
+        fig = px.line(cum_ret, title="Cumulative Portfolio Returns")
+        fig.update_xaxes(nticks=20)
+        fig.update_layout(
+            showlegend=False,
+            xaxis_title='Daily Timeline',
+            yaxis_title='Cumulative Returns'
+        )
+        st.plotly_chart(fig,use_container_width=True)
+
+        # Max Drawdown
+        fig=px.line(drawdown_data,title=f'Portfolio Drawdown (MaxDD:{drawdown_data.min():.3})')
+        fig.update_xaxes(nticks=20)
+        #   To create shaded region
+        fig.add_traces(go.Scatter(
+            x=drawdown_data.index, 
+            y=drawdown_data.values.flatten(), 
+            fill='tozeroy',   # fill area to y=0
+            mode='none',      # no line, just fill
+            fillcolor='rgba(255,0,0,0.2)',  # red shading with transparency
+            name='Shaded Area'
+        ))
+        fig.update_traces(line=dict(color="red"), selector=dict(type="scatter"))
+        #   To make the line color red
+        fig.update_traces(line=dict(color="red"))
+        fig.update_layout(
+            showlegend=False,
+            yaxis_title='Drawdown',
+            xaxis_title='Time'
+        )
+        st.plotly_chart(fig,use_container_width=True)
+        
+
+    # Asset Correlations
+    corr=returns[tickers].corr()
+    fig=px.imshow(corr,text_auto=True,aspect="auto",title="Asset Correlations",color_continuous_scale="RdYlBu")
     st.plotly_chart(fig,use_container_width=True)
 
-    # Max Drawdown
-    fig=px.line(drawdown_data,title=f'Portfolio Drawdown (MaxDD:{drawdown_data.min():.3})')
-    fig.update_xaxes(nticks=20)
-    #   To create shaded region
-    fig.add_traces(go.Scatter(
-        x=drawdown_data.index, 
-        y=drawdown_data.values.flatten(), 
-        fill='tozeroy',   # fill area to y=0
-        mode='none',      # no line, just fill
-        fillcolor='rgba(255,0,0,0.2)',  # red shading with transparency
-        name='Shaded Area'
+# spx comparison
+with tab2:
+    st.subheader("Portfolio vs S&P 500 Comparison")
+
+    spx_close = spx_prices['Close'].dropna()
+    spx_close=spx_close.squeeze()
+
+    spx_returns = simple_returns(spx_close)
+    spx_cum_ret = cumulative_returns(spx_returns)
+
+    spx_mean_ret=spx_returns.mean()
+    spx_volatility_score=spx_returns.std()
+    spx_sharpe_ratio = (spx_mean_ret * trading_days) / (spx_volatility_score * np.sqrt(trading_days))
+
+    spx_max_drawdown=max_drawdown(spx_returns).min()
+
+    spx_var=historical_var(spx_returns,1-confidence_level)
+    spx_cvar=historical_cvar(spx_returns,1-confidence_level)
+    spx_pvar=parametric_var(spx_returns,1-confidence_level)
+
+    # Metrics comparisons
+    # --- Risk Metrics ---
+    col1, col2, col3, col4 = st.columns(4)
+    metric_with_divider(col1, "Mean Daily Return", f"{port_mean_ret:.2%}")
+    metric_with_divider(col1, "S&P", f"{spx_mean_ret:.2%}")
+
+    metric_with_divider(col2, "Daily Volatility (Std Dev)", f"{volatility_score:.2%}")
+    metric_with_divider(col2, "S&P", f"{spx_volatility_score:.2%}")
+
+    metric_with_divider(col3, "Sharpe Ratio (Annualized)", f"{sharpe_ratio:.2%}")
+    metric_with_divider(col3, "S&P", f"{spx_sharpe_ratio:.2%}")
+
+    metric_with_divider(col4, "Daily Max Drawdown", f"{-drawdown_data.min():.2%}")
+    metric_with_divider(col4, "S&P", f"{-spx_max_drawdown:.2%}")
+
+    st.markdown("---")
+
+    # --- Confidence Level & VaR Metrics ---
+    st.write(f"**Confidence Level (Daily)**: {confidence_level:.2%}")
+    col1, col2, col3 = st.columns(3)
+    metric_with_divider(col1, "Daily Value at Risk (VaR)", f"{var:.2%}")
+    metric_with_divider(col2, "Daily Conditional VaR", f"{cvar:.2%}")
+    metric_with_divider(col3, "Daily Parametric VaR", f"{pvar:.2%}")
+
+    col1, col2, col3 = st.columns(3)
+    metric_with_divider(col1, "S&P", f"{spx_var:.2%}")
+    metric_with_divider(col2, "S&P", f"{spx_cvar:.2%}")
+    metric_with_divider(col3, "S&P", f"{spx_pvar:.2%}")
+
+    # Charts section
+    st.subheader('Charts')
+
+    compare_df = pd.concat(
+        [cum_ret.rename('Portfolio'), spx_cum_ret.rename('SPX')],
+        axis=1
+    ).fillna(0)
+    compare_df=compare_df[compare_df.index>=cum_ret.index.min()]
+    compare_df = ((compare_df + 1) / (compare_df.iloc[0] + 1)) * 100
+
+    # compare_df = pd.concat(
+    #     [port_ret.rename('Portfolio'), spx_returns.rename('SPX')],
+    #     axis=1
+    # ).fillna(0)
+    # compare_df = ((compare_df + 1) / (compare_df.iloc[0] + 1)) * 100
+    # compare_df['SPX']=((compare_df['SPX'] + 1) / (compare_df['SPX'].iloc[0] + 1)) * 100
+    # compare_df['Portfolio']=((compare_df['Portfolio'] + 1) / (compare_df['Portfolio'].iloc[0] + 1)) * compare_df['SPX'].iloc[0]
+
+    # Plotting related code below
+
+    fig = go.Figure()
+
+    fig.add_trace(go.Scatter(
+        x=compare_df.index,
+        y=compare_df['Portfolio'],
+        mode='lines',
+        name='Portfolio',
+        line=dict(width=2)
     ))
-    fig.update_traces(line=dict(color="red"), selector=dict(type="scatter"))
-    #   To make the line color red
-    fig.update_traces(line=dict(color="red"))
+
+    fig.add_trace(go.Scatter(
+        x=compare_df.index,
+        y=compare_df['SPX'],
+        mode='lines',
+        name='S&P 500',
+        line=dict(width=2, dash='dash')
+    ))
+
     fig.update_layout(
-        showlegend=False,
-        yaxis_title='Drawdown',
-        xaxis_title='Time'
+        title='Portfolio vs S&P 500 (Normalized Cumulative Returns)',
+        xaxis_title='Date',
+        yaxis_title='Index (100 = Start)',
+        hovermode='x unified',
+        legend=dict(x=0, y=1.05, orientation='h'),
+        template='plotly_white'
     )
-    st.plotly_chart(fig,use_container_width=True)
+
+    st.plotly_chart(fig, use_container_width=True)
+
+
+    # To create the differenced chart
+    compare_df['differenced']=compare_df[compare_df.columns[0]]-compare_df[compare_df.columns[1]]
     
+    fig = go.Figure()
 
-# Asset Correlations
-corr=returns[tickers].corr()
-fig=px.imshow(corr,text_auto=True,aspect="auto",title="Asset Correlations",color_continuous_scale="RdYlBu")
-st.plotly_chart(fig,use_container_width=True)
+    # --- Green area for positive values ---
+    fig.add_trace(go.Scatter(
+        x=compare_df.index,
+        y=np.where(compare_df['differenced'] > 0, compare_df['differenced'], 0),
+        fill='tozeroy',
+        mode='none',
+        fillcolor='rgba(0, 200, 0, 0.5)',  # semi-transparent green
+        name='Outperformance'
+    ))
 
-# To implement stress test
+    # --- Reddish-orange area for negative values ---
+    fig.add_trace(go.Scatter(
+        x=compare_df.index,
+        y=np.where(compare_df['differenced'] < 0, compare_df['differenced'], 0),
+        fill='tozeroy',
+        mode='none',
+        fillcolor='rgba(255, 16, 0, 0.5)',  # reddish orange
+        name='Underperformance'
+    ))
+
+    # # --- Optional: add a line on top for clarity ---
+    # fig.add_trace(go.Scatter(
+    #     x=compare_df.index,
+    #     y=compare_df['differenced'],
+    #     mode='lines',
+    #     line=dict(color='black', width=1.5),
+    #     name='Difference Line'
+    # ))
+
+    fig.update_layout(
+        title="Portfolio vs SPX — Differenced Area Plot",
+        xaxis_title="Date",
+        yaxis_title="Portfolio - SPX (Difference)",
+        template="plotly_white",
+        hovermode='x unified',
+        showlegend=False
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
