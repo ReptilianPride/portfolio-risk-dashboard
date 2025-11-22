@@ -2,10 +2,16 @@
 
 ## Overview
 
-The Portfolio Risk Dashboard is an interactive web-based tool built using Streamlit, enabling users to analyze and visualize portfolio risk metrics, volatility trends, and Value-at-Risk (VaR) estimates.
-Users can construct portfolios, allocate custom weights, and benchmark performance against the S&P 500 (SPX).  
+# Portfolio Risk Dashboard
 
-This project demonstrates the intersection of data science and financial risk analytics which is valuable for quantitative analysts, risk modelers, or financial data scientists.  
+The **Portfolio Risk Dashboard** is an interactive web-based tool built using **Streamlit**, enabling users to analyze and visualize portfolio risk metrics, volatility trends, and **Value-at-Risk (VaR)** estimates. Users can construct portfolios, allocate custom weights, and benchmark performance against the **S&P 500 (SPX)**. Additionally, the dashboard includes a **Monte Carlo simulation** feature that helps identify the **optimal portfolio weights** for a given number of simulations, allowing users to explore numerous portfolio combinations and determine allocations that maximize returns while managing risk.  
+
+
+This project demonstrates the intersection of **data science** and **financial risk analytics**, providing value for quantitative analysts, risk modelers, and financial data scientists.  
+
+## New Feature: Monte Carlo Portfolio Optimization
+A **Monte Carlo simulation** has been added to identify the **optimal portfolio weights** for a given number of simulations. This enhancement allows users to explore numerous portfolio combinations and determine the weight allocation that maximizes returns while managing risk.
+
 
 
 ## Key Features
@@ -34,16 +40,19 @@ Providing a visual overview to understand the plots better.
 Analyze using a specific historical time windows.
 
 ## Preview
+### NEWEST ADDITION!. Simulation Station Tab
+![Main Dashboard](assets/images/tab3.png)
+
 ### 1. Main Dashboard
 ![Main Dashboard](assets/images/tab1-1.png)
 
-### 2. Portfolio Risk Metrics
-![Risk Metrics](assets/images/tab2-1.png)
+### 2. Charts in Dashboard
+![Risk Metrics](assets/images/tab1-2.png)
 
-### 3. Charts from Main Dashboard
-![Main Charts](assets/images/tab1-4.png)
+### 3. S&P 500 Comparison Tab (Part 1)
+![Main Charts](assets/images/tab2-1.png)
 
-### 4. Charts from Portfolio vs S&P 500 (Second Tab)
+### 4. S&P 500 Comparison Tab (Part 2)
 ![Compare Charts](assets/images/tab2-2.png)
 
 ## Tech Stacks
@@ -64,19 +73,25 @@ portfolio-risk-dashboard/
 │   ├── data_fetch.py          # Data loading and cleaning
 │   ├── metrics.py             # Financial & risk computation functions
 │
+├── tabs/
+│   ├── portfolio_dashboard.py          # Portfolio Tab Dashboard
+│   ├── spx_comparison.py               # SPX Comparison Dashboard
+│   ├── simulation_station.py           # Simulation Station Dashboard
+│
 ├── app.py                     # Main Streamlit application
 ├── requirements.txt           # Python dependencies
 ├── README.md                  # Project documentation
 └── assets/                    # Content for README placeholders
 ```
 
-## 🧠 Concepts Demonstrated
+## 🧠 Features
 - Portfolio optimization and performance measurement
 - Risk assessment through VaR / CVaR / drawdown analysis
 - Sharpe ratio & volatility tracking
 - Rolling window volatility estimation
 - Time-series data manipulation using pandas MultiIndex
 - Comparative benchmarking against market indices
+- Monte Carlo Simulation for portfolio optimization
 
 ## Included Charts
 - 📈 Portfolio Cumulative Returns
