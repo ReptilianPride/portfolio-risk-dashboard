@@ -2,22 +2,21 @@ import streamlit as st
 from streamlit_tags import st_tags
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
-import plotly.express as px
-import plotly.graph_objects as go
 
 from src.data_fetch import fetch_prices
 from src.metrics import (
     simple_returns, portfolio_returns, cumulative_returns,
-    rolling_vol, max_drawdown, historical_var, historical_cvar,
-    parametric_var
+    rolling_vol, max_drawdown, historical_var, historical_cvar, parametric_var
 )
 
+from tabs.portfolio_dashboard import show_portfolio_dashboard
+from tabs.spx_comparison import show_spx_comparison
+from tabs.simulation_station import show_simulation_station
 
-# helper functions
-# To create the metric blocks with boundries and custom styles
+# --------------------------
+# Helper Functions
+# --------------------------
 def metric_with_divider(col, label, value, border=True):
-    """Custom metric with optional vertical divider line."""
     border_style = "border-right:1px solid lightgray;" if border else ""
     with col:
         st.markdown(
@@ -29,95 +28,98 @@ def metric_with_divider(col, label, value, border=True):
             """,
             unsafe_allow_html=True,
         )
-# helper functions end
+
+def st_alert(message, alert_type="info"):
+    """
+    Show a warning/info/success message and scroll to top reliably.
+    """
+    alert_func = {"info": st.info, "warning": st.warning, "success": st.success}.get(alert_type, st.info)
+    alert_func(message)  # Render the alert
+
+    # Scroll to top AFTER the alert exists
+    st.markdown(
+        """
+        <script>
+        setTimeout(function() {
+            const el = document.querySelector('div[data-testid="stAlert"]');
+            if(el) { el.scrollIntoView({behavior: 'smooth', block: 'start'}); }
+        }, 200);
+        </script>
+        """,
+        unsafe_allow_html=True
+    )
 
 # --------------------------
 # Page Configs
 # --------------------------
 st.set_page_config(
-    page_title="Development",  # this sets the <title>
-    page_icon="🚀",              # optional, sets the favicon
+    page_title="Portfolio Dashboard",
+    page_icon="📊",
     layout='wide'
 )
 
+# For initiating scroll on top
+message_placeholder = st.empty()
+
 # --------------------------
-# Load Data
+# Load SPX Data
 # --------------------------
 @st.cache_data
 def load_data():
-    # Replace this with your own loading step
     prices = fetch_prices(['^GSPC'])
-    prices=prices.dropna()
+    prices = prices.dropna()
     return prices
+
 spx_prices = load_data()
-spx_close = spx_prices['Close']
 
 # --------------------------
 # Sidebar Inputs
 # --------------------------
 st.sidebar.header("Portfolio Settings")
-
-# Get the initial investment
 initial_investment = st.sidebar.number_input("Initial Investment ($)", min_value=0, value=10000, step=1000)
 
-# Text tag area to add assets
+# Add tickers
 tickers = st.sidebar.container()
 with tickers:
     tickers = st_tags(
         label="Add Assets",
         text="Press enter to add more",
-        value=['AAPL','GOOG'],
-        suggestions=["AAPL", "GOOG", "TSLA"],  # optional autocomplete
-        # maxtags=10
+        value=['AAPL', 'GOOG'],
+        suggestions=["AAPL", "GOOG", "TSLA"]
     )
-tickers=list(map(str.upper,tickers))
+tickers = list(map(str.upper, tickers))
 
-# ***GRAB THE PRICE DATA
-if(len(tickers)):
-    prices=fetch_prices(tickers)
-    prices=prices.dropna()
-    close=prices['Close']
+# Fetch prices for selected tickers
+if tickers:
+    prices = fetch_prices(tickers).dropna()
+    close = prices['Close']
 
-
-# To set the weights
-weights=[]
+# Set portfolio weights
+weights = []
 if tickers:
     st.sidebar.subheader("Portfolio Weights (%)")
     for t in tickers:
-        w=st.sidebar.slider(
-            f'{t} Weight',
-            min_value=0,
-            max_value=100,
-            value=100//len(tickers),
-            step=1 # Uses only int for now
-        )
+        w = st.sidebar.slider(f'{t} Weight', min_value=0, max_value=100, value=100//len(tickers), step=1)
         weights.append(w)
 
-total_weight=sum(weights)
-
+total_weight = sum(weights)
 st.sidebar.markdown(
     f"Total Weight Used: <span style='color:{'lightgreen' if total_weight==100 else 'red'}'>{total_weight}</span>/100",
     unsafe_allow_html=True
 )
 
-# To get the confident level for VaR calculations
 confidence_level = st.sidebar.selectbox("VaR Confidence Level", [0.90, 0.95, 0.99], index=1)
 
-valid_weights=total_weight==100
-if not valid_weights:
-    st.warning("⚠️ Warning: Total weight does not add up to 100%.")
+st.header('Portfolio Dashboard')
 
-# Main side
-if valid_weights:
-    st.success('Dashboard updated!')
-
-    st.title('Stock Portfolio Risk Dashboard')
-    st.markdown("A platform to test your portfolio.")
-
-    st.subheader('Portfolio Overview')
-
+if total_weight != 100:
+    st_alert("⚠️ Please set weights to total 100%.","info")
+    st.stop()
+else:
+    st_alert("Dashboard updated!","success")
+    
     # Custom time period selection
-    st.subheader("Date Range")
+    st.subheader("Year Range")
     close.index = pd.to_datetime(close.index)
     years = sorted(close.index.year.unique())
     start_year, end_year = st.select_slider(
@@ -125,356 +127,71 @@ if valid_weights:
         options=years,
         value=(years[0],years[-1])
     )
-    close = close[(close.index.year >= start_year) & (close.index.year <= end_year)] # To filter as per selected timeframe
+    # Portfolio Year Filter
+    close = close[(close.index.year >= start_year) & (close.index.year <= end_year)]
 
-    # Calculation section
-    returns=simple_returns(close[tickers])
-    port_ret=portfolio_returns(returns,weights)
-    cum_ret=cumulative_returns(port_ret)
-
-    port_value=initial_investment*(cum_ret+1)
-    
-    port_mean_ret=port_ret.mean()
-    volatility_score=port_ret.std()
-    # sharpe_ratio=port_mean_ret/volatility_score
-    trading_days=252
+    # --------------------------
+    # Calculations
+    # --------------------------
+    close.index = pd.to_datetime(close.index)
+    returns = simple_returns(close[tickers])
+    port_ret = portfolio_returns(returns, weights)
+    cum_ret = cumulative_returns(port_ret)
+    port_value = initial_investment * (cum_ret + 1)
+    port_mean_ret = port_ret.mean()
+    volatility_score = port_ret.std()
+    trading_days = 252
     sharpe_ratio = (port_mean_ret * trading_days) / (volatility_score * np.sqrt(trading_days))
-
-    window_size=60 # Could be a user input
-    roll_vol=rolling_vol(port_ret,window=window_size)
-
-    drawdown_data=max_drawdown(port_ret)
-
-    var=historical_var(port_ret,1-confidence_level)
-    cvar=historical_cvar(port_ret,1-confidence_level)
-    pvar=parametric_var(port_ret,1-confidence_level)
-
+    window_size = 60
+    roll_vol = rolling_vol(port_ret, window=window_size)
+    drawdown_data = max_drawdown(port_ret)
+    var = historical_var(port_ret, 1-confidence_level)
+    cvar = historical_cvar(port_ret, 1-confidence_level)
+    pvar = parametric_var(port_ret, 1-confidence_level)
     cash_var = initial_investment * var
     cash_cvar = initial_investment * cvar
     cash_pvar = initial_investment * pvar
+    corr = returns.corr()
 
-    corr=returns.corr()
-
-    # Save into session_state
     st.session_state.last_results = {
         "returns": returns,
         "port_ret": port_ret,
         "cum_ret": cum_ret,
-        "port_value":port_value,
+        "port_value": port_value,
         "port_mean_ret": port_mean_ret,
         "volatility_score": volatility_score,
         "sharpe_ratio": sharpe_ratio,
-        "window_size":window_size,
+        "window_size": window_size,
         "roll_vol": roll_vol,
         "drawdown_data": drawdown_data,
         "var": var,
         "cvar": cvar,
-        "pvar":pvar,
-        "cash_var":cash_var,
-        "cash_cvar":cash_cvar,
-        "cash_pvar":cash_pvar,
+        "pvar": pvar,
+        "cash_var": cash_var,
+        "cash_cvar": cash_cvar,
+        "cash_pvar": cash_pvar,
         "corr": corr,
     }
 
 # --------------------------
-# Dashboard Layout
-# --------------------------
-
-# --------------------------
-# Use last valid results (if available)
+# Tabs
 # --------------------------
 if "last_results" not in st.session_state:
-    st.info("👉 Please set weights to total 100% to see results.")
+    st_alert("👉 Please set weights to total 100% to see results.","info")
     st.stop()
 
 results = st.session_state.last_results
-
-# unpack variables
-returns = results["returns"]
-port_ret = results["port_ret"]
-cum_ret = results["cum_ret"]
-port_value=results['port_value']
-port_mean_ret = results["port_mean_ret"]
-volatility_score = results["volatility_score"]
-sharpe_ratio = results["sharpe_ratio"]
-window_size=results['window_size']
-roll_vol = results["roll_vol"]
-drawdown_data = results["drawdown_data"]
-var = results["var"]
-cvar = results["cvar"]
-pvar=results['pvar']
-cash_var=results['cash_var']
-cash_cvar=results['cash_cvar']
-cash_pvar=results['cash_pvar']
-corr = results["corr"]
-
-tab1, tab2 = st.tabs(["Portfolio Dashboard", "Comparison with SPX"])
+tab1, tab2, tab3 = st.tabs([
+    "Portfolio Dashboard", 
+    "Comparison with SPX",
+    "Simulation Station"
+])
 
 with tab1:
-    # Non chart based display for dashboard
-    df = pd.DataFrame({
-        "Ticker": tickers,
-        "Weight": [f"{w}%" for w in weights] 
-    })
-    st.write("**Selected Tickers (w/ weights):**")
-    # st.write(f'**Portfolio startpoint:** {close.index.min().year}')
-    st.dataframe(df)
+    show_portfolio_dashboard(tickers, weights, initial_investment, close, results, metric_with_divider)
 
-    st.subheader('Risk Metrics (Daily)')
-
-    # --- Risk Metrics ---
-    col1, col2, col3, col4 = st.columns(4)
-    metric_with_divider(col1, "Mean Return", f"{port_mean_ret:.2%}")
-    metric_with_divider(col1, "", "$"+str(round((initial_investment * port_mean_ret), 2)))
-
-    metric_with_divider(col2, "Volatility (Std Dev)", f"{volatility_score:.2%}")
-    metric_with_divider(col2, "", "$"+str(round((initial_investment * volatility_score), 2)))
-
-    metric_with_divider(col3, "Sharpe Ratio (annualized)", f"{sharpe_ratio:.2%}")
-    metric_with_divider(col3, "", "$"+str(round((initial_investment * sharpe_ratio), 2)))
-
-    metric_with_divider(col4, "Max Drawdown", f"{-drawdown_data.min():.2%}")
-    metric_with_divider(col4, "", "$"+str(round(-(initial_investment * drawdown_data.min()), 2)))
-
-    st.markdown("---")
-
-    # --- Confidence Level & VaR Metrics ---
-    st.write(f"**Confidence Level (Daily)**: {confidence_level:.2%}")
-    col1, col2, col3 = st.columns(3)
-    metric_with_divider(col1, "Value at Risk (VaR)", f"{var:.2%}")
-    metric_with_divider(col2, "Conditional VaR", f"{cvar:.2%}")
-    metric_with_divider(col3, "Parametric VaR", f"{pvar:.2%}")
-
-    col1, col2, col3 = st.columns(3)
-    metric_with_divider(col1, "", "$"+str(round(cash_var, 2)))
-    metric_with_divider(col2, "", "$"+str(round(cash_cvar, 2)))
-    metric_with_divider(col3, "", "$"+str(round(cash_pvar, 2)))
-
-
-# --------------------------
-# Dashboard Layout
-# --------------------------
-
-    st.subheader('Charts')
-
-    # To show the portfolio returns chart
-    fig=px.line(port_value,title='Portfolio Returns')
-    fig.update_xaxes(nticks=20)
-    fig.update_traces(
-        hovertemplate='Date: %{x|%Y-%m-%d}<br>Value: %{y:,.2f}<extra></extra>'
-    )
-    fig.update_layout(
-        showlegend=False,
-        xaxis_title='Time',
-        yaxis_title='Returns'
-    )
-    st.plotly_chart(fig,use_container_width=True)
-
-    col1,col2=st.columns(2)
-
-    with col1:
-        # Return distribution
-        fig=px.histogram(port_ret,nbins=50,title='Portfolio Return Distribution')
-        fig.add_vline(x=-var, line_dash="dash", line_color='red', annotation_text=f"VaR ({-var:.2%})", annotation_position='top right')
-        fig.add_vline(x=-cvar, line_dash="dot", line_color='white', annotation_text=f"CVaR ({-cvar:.2%})", annotation_position='top left')
-        fig.update_layout(
-            showlegend=False,
-            xaxis_title='Daily Returns',
-            yaxis_title='Frequency'
-        )
-        st.plotly_chart(fig,use_container_width=True)
-
-        # Annualized Rolling Volatility
-        fig=px.line(roll_vol,title=f"{window_size}-day Annualized Rolling Volitility")
-        fig.update_xaxes(nticks=20)
-        fig.update_traces(line=dict(color='orange'))
-        fig.update_layout(
-            showlegend=False,
-            xaxis_title='Time',
-            yaxis_title='Volatility'
-        )
-        st.plotly_chart(fig,use_container_width=True)
-
-
-    with col2:
-        # Cumulative Returns Distribution
-        fig = px.line(cum_ret, title="Cumulative Portfolio Returns")
-        fig.update_xaxes(nticks=20)
-        fig.update_layout(
-            showlegend=False,
-            xaxis_title='Daily Timeline',
-            yaxis_title='Cumulative Returns'
-        )
-        st.plotly_chart(fig,use_container_width=True)
-
-        # Max Drawdown
-        fig=px.line(drawdown_data,title=f'Portfolio Drawdown (MaxDD:{drawdown_data.min():.3})')
-        fig.update_xaxes(nticks=20)
-        #   To create shaded region
-        fig.add_traces(go.Scatter(
-            x=drawdown_data.index, 
-            y=drawdown_data.values.flatten(), 
-            fill='tozeroy',   # fill area to y=0
-            mode='none',      # no line, just fill
-            fillcolor='rgba(255,0,0,0.2)',  # red shading with transparency
-            name='Shaded Area'
-        ))
-        fig.update_traces(line=dict(color="red"), selector=dict(type="scatter"))
-        #   To make the line color red
-        fig.update_traces(line=dict(color="red"))
-        fig.update_layout(
-            showlegend=False,
-            yaxis_title='Drawdown',
-            xaxis_title='Time'
-        )
-        st.plotly_chart(fig,use_container_width=True)
-        
-
-    # Asset Correlations
-    corr=returns[tickers].corr()
-    fig=px.imshow(corr,text_auto=True,aspect="auto",title="Asset Correlations",color_continuous_scale="RdYlBu")
-    st.plotly_chart(fig,use_container_width=True)
-
-# spx comparison
 with tab2:
-    st.subheader("Portfolio vs S&P 500 Comparison")
+    show_spx_comparison(results, spx_prices, tickers, close, confidence_level, metric_with_divider)
 
-    spx_close = spx_prices['Close'].dropna()
-    spx_close=spx_close.squeeze()
-
-    spx_returns = simple_returns(spx_close)
-    spx_cum_ret = cumulative_returns(spx_returns)
-
-    spx_mean_ret=spx_returns.mean()
-    spx_volatility_score=spx_returns.std()
-    spx_sharpe_ratio = (spx_mean_ret * trading_days) / (spx_volatility_score * np.sqrt(trading_days))
-
-    spx_max_drawdown=max_drawdown(spx_returns).min()
-
-    spx_var=historical_var(spx_returns,1-confidence_level)
-    spx_cvar=historical_cvar(spx_returns,1-confidence_level)
-    spx_pvar=parametric_var(spx_returns,1-confidence_level)
-
-    # Metrics comparisons
-    # --- Risk Metrics ---
-    col1, col2, col3, col4 = st.columns(4)
-    metric_with_divider(col1, "Mean Daily Return", f"{port_mean_ret:.2%}")
-    metric_with_divider(col1, "S&P", f"{spx_mean_ret:.2%}")
-
-    metric_with_divider(col2, "Daily Volatility (Std Dev)", f"{volatility_score:.2%}")
-    metric_with_divider(col2, "S&P", f"{spx_volatility_score:.2%}")
-
-    metric_with_divider(col3, "Sharpe Ratio (Annualized)", f"{sharpe_ratio:.2%}")
-    metric_with_divider(col3, "S&P", f"{spx_sharpe_ratio:.2%}")
-
-    metric_with_divider(col4, "Daily Max Drawdown", f"{-drawdown_data.min():.2%}")
-    metric_with_divider(col4, "S&P", f"{-spx_max_drawdown:.2%}")
-
-    st.markdown("---")
-
-    # --- Confidence Level & VaR Metrics ---
-    st.write(f"**Confidence Level (Daily)**: {confidence_level:.2%}")
-    col1, col2, col3 = st.columns(3)
-    metric_with_divider(col1, "Daily Value at Risk (VaR)", f"{var:.2%}")
-    metric_with_divider(col2, "Daily Conditional VaR", f"{cvar:.2%}")
-    metric_with_divider(col3, "Daily Parametric VaR", f"{pvar:.2%}")
-
-    col1, col2, col3 = st.columns(3)
-    metric_with_divider(col1, "S&P", f"{spx_var:.2%}")
-    metric_with_divider(col2, "S&P", f"{spx_cvar:.2%}")
-    metric_with_divider(col3, "S&P", f"{spx_pvar:.2%}")
-
-    # Charts section
-    st.subheader('Charts')
-
-    compare_df = pd.concat(
-        [cum_ret.rename('Portfolio'), spx_cum_ret.rename('SPX')],
-        axis=1
-    ).fillna(0)
-    compare_df=compare_df[compare_df.index>=cum_ret.index.min()]
-    compare_df = ((compare_df + 1) / (compare_df.iloc[0] + 1)) * 100
-
-    # compare_df = pd.concat(
-    #     [port_ret.rename('Portfolio'), spx_returns.rename('SPX')],
-    #     axis=1
-    # ).fillna(0)
-    # compare_df = ((compare_df + 1) / (compare_df.iloc[0] + 1)) * 100
-    # compare_df['SPX']=((compare_df['SPX'] + 1) / (compare_df['SPX'].iloc[0] + 1)) * 100
-    # compare_df['Portfolio']=((compare_df['Portfolio'] + 1) / (compare_df['Portfolio'].iloc[0] + 1)) * compare_df['SPX'].iloc[0]
-
-    # Plotting related code below
-
-    fig = go.Figure()
-
-    fig.add_trace(go.Scatter(
-        x=compare_df.index,
-        y=compare_df['Portfolio'],
-        mode='lines',
-        name='Portfolio',
-        line=dict(width=2)
-    ))
-
-    fig.add_trace(go.Scatter(
-        x=compare_df.index,
-        y=compare_df['SPX'],
-        mode='lines',
-        name='S&P 500',
-        line=dict(width=2, dash='dash')
-    ))
-
-    fig.update_layout(
-        title='Portfolio vs S&P 500 (Normalized Cumulative Returns)',
-        xaxis_title='Date',
-        yaxis_title='Index (100 = Start)',
-        hovermode='x unified',
-        legend=dict(x=0, y=1.05, orientation='h'),
-        template='plotly_white'
-    )
-
-    st.plotly_chart(fig, use_container_width=True)
-
-
-    # To create the differenced chart
-    compare_df['differenced']=compare_df[compare_df.columns[0]]-compare_df[compare_df.columns[1]]
-    
-    fig = go.Figure()
-
-    # --- Green area for positive values ---
-    fig.add_trace(go.Scatter(
-        x=compare_df.index,
-        y=np.where(compare_df['differenced'] > 0, compare_df['differenced'], 0),
-        fill='tozeroy',
-        mode='none',
-        fillcolor='rgba(0, 200, 0, 0.5)',  # semi-transparent green
-        name='Outperformance'
-    ))
-
-    # --- Reddish-orange area for negative values ---
-    fig.add_trace(go.Scatter(
-        x=compare_df.index,
-        y=np.where(compare_df['differenced'] < 0, compare_df['differenced'], 0),
-        fill='tozeroy',
-        mode='none',
-        fillcolor='rgba(255, 16, 0, 0.5)',  # reddish orange
-        name='Underperformance'
-    ))
-
-    # # --- Optional: add a line on top for clarity ---
-    # fig.add_trace(go.Scatter(
-    #     x=compare_df.index,
-    #     y=compare_df['differenced'],
-    #     mode='lines',
-    #     line=dict(color='black', width=1.5),
-    #     name='Difference Line'
-    # ))
-
-    fig.update_layout(
-        title="Portfolio vs SPX — Differenced Area Plot",
-        xaxis_title="Date",
-        yaxis_title="Portfolio - SPX (Difference)",
-        template="plotly_white",
-        hovermode='x unified',
-        showlegend=False
-    )
-
-    st.plotly_chart(fig, use_container_width=True)
+with tab3:
+    show_simulation_station(results['returns'],metric_with_divider)
