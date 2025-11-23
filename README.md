@@ -1,15 +1,11 @@
 # Portfolio Risk Dashboard
 
-## Overview
-
-# Portfolio Risk Dashboard
-
 The **Portfolio Risk Dashboard** is an interactive web-based tool built using **Streamlit**, enabling users to analyze and visualize portfolio risk metrics, volatility trends, and **Value-at-Risk (VaR)** estimates. Users can construct portfolios, allocate custom weights, and benchmark performance against the **S&P 500 (SPX)**. Additionally, the dashboard includes a **Monte Carlo simulation** feature that helps identify the **optimal portfolio weights** for a given number of simulations, allowing users to explore numerous portfolio combinations and determine allocations that maximize returns while managing risk.  
 
 
 This project demonstrates the intersection of **data science** and **financial risk analytics**, providing value for quantitative analysts, risk modelers, and financial data scientists.  
 
-## New Feature: Monte Carlo Portfolio Optimization
+![Monte Carlo Update](https://img.shields.io/badge/Anouncement-New_red)  
 A **Monte Carlo simulation** has been added to identify the **optimal portfolio weights** for a given number of simulations. This enhancement allows users to explore numerous portfolio combinations and determine the weight allocation that maximizes returns while managing risk.
 
 
