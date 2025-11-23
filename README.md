@@ -12,6 +12,9 @@ A **Monte Carlo simulation** has been added to identify the **optimal portfolio 
 
 ## Key Features
 
+### Monte Carlo Simulation Station
+Find out the best asset weightage for the best outcomes using Monte Carlo Simulations
+
 ### Dynamic Portfolio Output
 Add custom tickers and define allocation weights interactively.  
 
