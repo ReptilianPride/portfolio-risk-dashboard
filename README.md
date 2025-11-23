@@ -118,7 +118,6 @@ streamlit run app.py
 ```
 
 # Future Enhancements
-- ✅ Integration of Monte Carlo Simulation for risk forecasting
 - ✅ Portfolio optimization using Mean-Variance (Markowitz) model
 - ✅ Incorporate Sharpe, Sortino, and Calmar ratios dynamically
 - ✅ Add sector & asset-class diversification charts
